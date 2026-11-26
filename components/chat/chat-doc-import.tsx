@@ -66,7 +66,10 @@ export function ChatDocImport({
             return;
         }
         setLoading(true);
-        loadFileVaultLibrary()
+        Promise.race([
+            loadFileVaultLibrary(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("读取文件库超时，请检查文件库应用是否正常")), 8000)),
+        ])
             .then((rows) => {
                 if (cancelled) return;
                 setVaultEntries(rows);
@@ -75,6 +78,7 @@ export function ChatDocImport({
             .catch((err) => {
                 if (cancelled) return;
                 setError((err as Error)?.message || "读取文件库失败");
+                setVaultLoaded(true);
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
