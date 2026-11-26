@@ -13,6 +13,7 @@
 // 另外提供「文件库」自定义应用（file.vault）的材料读取，供「从文件库导入」用。
 
 import { decodeTxtArrayBuffer, extractPdfPlainText } from "./reading-parser";
+import { hydrateKvDb } from "./kv-db";
 import {
     loadInstalledCustomApps,
     readCustomAppCollection,
@@ -438,9 +439,10 @@ export function findFileVaultApp(): InstalledCustomApp | null {
 }
 
 export async function loadFileVaultLibrary(collection?: string): Promise<FileVaultEntry[]> {
+    await hydrateKvDb();
     const app = findFileVaultApp();
     if (!app) return [];
-    const rows = await readCustomAppCollection(app.id, collection || FILE_VAULT_COLLECTION);
+    const rows = readCustomAppCollection(app.id, collection || FILE_VAULT_COLLECTION);
     return rows.map((row: any) => ({
         id: row.id || uid("fv"),
         title: row.title || "未命名材料",

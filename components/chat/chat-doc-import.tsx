@@ -51,6 +51,7 @@ export function ChatDocImport({
         if (!open) return;
         setTab(initialTab);
         setError("");
+        setLoading(false);
         setPreviewDoc(null);
         setSelectedChapters([]);
         setParseProgress(null);
@@ -59,12 +60,6 @@ export function ChatDocImport({
     useEffect(() => {
         if (!open || tab !== "library" || vaultLoaded) return;
         let cancelled = false;
-        const app = findFileVaultApp();
-        setHasVaultApp(Boolean(app));
-        if (!app) {
-            setVaultLoaded(true);
-            return;
-        }
         setLoading(true);
         Promise.race([
             loadFileVaultLibrary(),
@@ -72,6 +67,7 @@ export function ChatDocImport({
         ])
             .then((rows) => {
                 if (cancelled) return;
+                setHasVaultApp(Boolean(findFileVaultApp()));
                 setVaultEntries(rows);
                 setVaultLoaded(true);
             })
@@ -81,7 +77,7 @@ export function ChatDocImport({
                 setVaultLoaded(true);
             })
             .finally(() => {
-                if (!cancelled) setLoading(false);
+                setLoading(false);
             });
         return () => {
             cancelled = true;
