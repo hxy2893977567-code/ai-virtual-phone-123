@@ -647,3 +647,45 @@ export async function parsePdfPageRange(
         chunks: [...chunkMap.values()].sort((a, b) => a.startPage - b.startPage),
     };
 }
+
+/**
+ * PDF 全文抽取（基于仓库内 CDN 加载的 PDF.js）
+ */
+export async function extractPdfPlainText(
+    source: PdfSource,
+    options?: { onProgress?: (ratio: number) => void },
+): Promise<{ text: string; totalPages: number }> {
+    const { pdf, dispose } = await openPdfDocument(source);
+    try {
+        const totalPages = pdf.numPages || 0;
+        const texts: string[] = [];
+
+        for (let i = 1; i <= totalPages; i += 1) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const items = (content.items || []) as Array<{ str?: string }>;
+            const pageText = items.map((item) => item.str || "").join(" ").replace(/\s+/g, " ").trim();
+            if (pageText) texts.push(pageText);
+
+            page.cleanup?.();
+            if (options?.onProgress && totalPages > 0) {
+                options.onProgress(i / totalPages);
+            }
+            if (i % 12 === 0) {
+                await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            }
+        }
+
+        return {
+            text: texts.join("\n\n"),
+            totalPages,
+        };
+    } finally {
+        try {
+            await pdf.destroy?.();
+        } catch {
+            // Ignore cleanup failures from PDF.js.
+        }
+        await dispose();
+    }
+}

@@ -52,7 +52,9 @@ import { useKeyboardDismissAutoSend } from "@/components/chat/use-keyboard-dismi
 import { cancelBailoutKey } from "@/lib/push-bailout-client";
 import { PENDING_REPLY_PREFIX } from "@/lib/friend-request-engine";
 import type { UserIdentity } from "@/components/settings/user-identity";
-import { AlertCircle, Blocks, Check, Trash2, User, ChevronLeft, ChevronRight, Clapperboard, Clock, Gift, Languages, Loader2, MoreHorizontal, X } from "lucide-react";
+import { AlertCircle, Blocks, Check, FileText, Trash2, User, ChevronLeft, ChevronRight, Clapperboard, Clock, Gift, Languages, Loader2, MoreHorizontal, X } from "lucide-react";
+import { ChatDocImport, ChatDocAttachmentBar } from "./chat-doc-import";
+import { attachmentCardLabel, resolveAttachmentText, type ChatDocAttachment } from "@/lib/chat-document-import";
 import { setDebugChatState } from "@/lib/debug-store";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
 import { setChatActive } from "@/lib/music-action-queue";
@@ -1316,6 +1318,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     const [voiceTextIds, setVoiceTextIds] = useState<Set<string>>(new Set());
     const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
     const [editingContent, setEditingContent] = useState("");
+    const [showDocImport, setShowDocImport] = useState(false);
+    const [docAttachment, setDocAttachment] = useState<ChatDocAttachment | null>(null);
     const [editingResponseBatchId, setEditingResponseBatchId] = useState<string | null>(null);
     const [editingResponseRoundId, setEditingResponseRoundId] = useState<string | null>(null);
     const [editingResponseContent, setEditingResponseContent] = useState("");
@@ -3944,7 +3948,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             return false;
         }
         const trimmed = text.trim();
-        if (!trimmed) return false;
+        if (!trimmed && !docAttachment) return false;
 
         // Cancel any pending follow-up for this session
         cancelFollowUp(session.id);
@@ -3959,17 +3963,39 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         setQuotingMessage(null);
 
         const commitSendText = (currentText: string) => {
+            const currentAttachment = docAttachment;
+            setDocAttachment(null);
+
+            let contentToSend = currentText;
+            let effectiveMediaType: ChatMessage["mediaType"] = isQuoting ? "quote" : undefined;
+            let effectiveMediaData: ChatMessage["mediaData"] = isQuoting ? quoteData : undefined;
+
+            if (currentAttachment) {
+                const docFullText = resolveAttachmentText(currentAttachment);
+                const cardLabel = attachmentCardLabel(currentAttachment);
+                contentToSend = currentText
+                    ? `${currentText}\n\n[附带文档：${cardLabel}]\n${docFullText}`
+                    : `[附带文档：${cardLabel}]\n${docFullText}`;
+                effectiveMediaType = "media_file";
+                effectiveMediaData = {
+                    label: cardLabel,
+                    fileName: currentAttachment.title,
+                    fileExt: currentAttachment.ext,
+                    fileChars: currentAttachment.charCount,
+                };
+            }
+
             // 掷骰子：整条消息就是骰子图标时，发骰子气泡（内容仅图标），
             // 点数由系统旁白公布——避免结果挂在 user 消息上被角色模仿格式
-            const diceOnly = !isQuoting && isDiceOnlyMessage(currentText);
+            const diceOnly = !isQuoting && !currentAttachment && isDiceOnlyMessage(currentText);
             const diceFace = diceOnly ? rollChatDiceFace() : 0;
 
             const newMsg = pushChatMessage({
                 sessionId: session.id,
                 role: "user",
-                content: currentText,
-                mediaType: diceOnly ? "dice" : isQuoting ? "quote" : undefined,
-                mediaData: diceOnly ? { diceFace } : isQuoting ? quoteData : undefined,
+                content: contentToSend,
+                mediaType: diceOnly ? "dice" : effectiveMediaType,
+                mediaData: diceOnly ? { diceFace } : effectiveMediaData,
             });
 
             setMessages(prev => [...prev, newMsg]);
@@ -6223,6 +6249,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     onStopGeneration={clearOfflineGeneration}
                 />
             ) : (
+            <>
+                <ChatDocAttachmentBar
+                    attachment={docAttachment}
+                    onRemove={() => setDocAttachment(null)}
+                />
             <ChatTextInputBar
                 ref={chatTextInputRef}
                 characterName={character?.name || "对方"}
@@ -6256,6 +6287,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 onTriggerAIResponse={triggerAIResponse}
                 onSendSticker={(name, url) => { setShowStickerPanel(false); sendRichMessage("sticker", { label: name, stickerUrl: url }); }}
             />
+            </>
             ))}
 
             {showConfirmMultiDelete && (
@@ -6464,6 +6496,18 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     onClose={() => setRichModal(null)}
                 />
             )}
+
+            <ChatDocImport
+                open={showDocImport}
+                onClose={() => setShowDocImport(false)}
+                onInsertText={(text) => {
+                    const prev = chatTextInputRef.current?.getText?.() || "";
+                    chatTextInputRef.current?.setText?.(prev ? `${prev}\n\n${text}` : text);
+                }}
+                onAttachDocument={(att) => {
+                    setDocAttachment(att);
+                }}
+            />
             {richModal === "system_instruction" && (
                 <SystemInstructionModal
                     onSend={(text) => {

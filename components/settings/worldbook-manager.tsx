@@ -14,6 +14,8 @@ import { loadCharacters } from "@/lib/character-storage";
 import type { WorldBookConfig, WorldBookEntry } from "@/lib/settings-types";
 import { SettingsContext } from "../phone-settings-app";
 import { BottomSheet, ConfirmDialog, TextExpandModal } from "@/components/ui/modal";
+import { WorldBookFileVaultSheet } from "./worldbook-file-vault";
+import type { WorldBookDraftEntry } from "@/lib/worldbook-file-vault";
 import { SwipeActionRow, useSwipeActions } from "@/components/ui/swipe-actions";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 
@@ -369,6 +371,7 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
 
     // ── 条目级导入/导出（左滑「替换/导出」+ 底部「添加条目」菜单） ──
     const [addEntryMenuOpen, setAddEntryMenuOpen] = useState(false);
+    const [fileVaultOpen, setFileVaultOpen] = useState(false);
     const entryFileInputRef = useRef<HTMLInputElement>(null);
     const entryImportModeRef = useRef<{ mode: "append" } | { mode: "replace"; uid: string } | null>(null);
 
@@ -415,6 +418,19 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
                 ?.querySelector(`[data-swipe-id="${CSS.escape(appended[0].uid)}"]`)
                 ?.scrollIntoView({ behavior: "smooth", block: "center" });
         }, 80);
+    };
+
+    const handleImportFromFileVault = (drafts: WorldBookDraftEntry[]) => {
+        if (!activeBook) return;
+        const raws = drafts.map(d => ({
+            comment: d.title,
+            content: d.content,
+            key: d.keys.join(", "),
+        }));
+        appendImportedEntries(activeBook, raws);
+        window.dispatchEvent(new CustomEvent("global-notice", {
+            detail: `已从文件库导入 ${drafts.length} 条世界书条目`,
+        }));
     };
 
     const replaceImportedEntry = (book: WorldBookConfig, targetUid: string, raw: unknown) => {
@@ -905,6 +921,16 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
                             className="ui-btn ui-btn-outline w-full"
                             onClick={() => {
                                 setAddEntryMenuOpen(false);
+                                setFileVaultOpen(true);
+                            }}
+                        >
+                            <BookOpen size={16} /> 从文件库导入
+                        </button>
+                        <button
+                            type="button"
+                            className="ui-btn ui-btn-outline w-full"
+                            onClick={() => {
+                                setAddEntryMenuOpen(false);
                                 entryImportModeRef.current = { mode: "append" };
                                 entryFileInputRef.current?.click();
                             }}
@@ -929,6 +955,12 @@ export function WorldBookManager({ isActive = true }: { isActive?: boolean } = {
                     />
                 );
             })()}
+
+            <WorldBookFileVaultSheet
+                open={fileVaultOpen}
+                onClose={() => setFileVaultOpen(false)}
+                onImportEntries={handleImportFromFileVault}
+            />
         </div>
     );
 }

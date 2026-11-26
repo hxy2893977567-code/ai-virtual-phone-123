@@ -479,23 +479,30 @@ export function stopMascotGeneration() {
 
 export async function appendMascotMessage({
     text,
+    displayText,
     images = [],
 }: {
     text: string;
+    displayText?: string;
     images?: string[];
 }): Promise<boolean> {
     await hydrateMascotChat();
     const trimmed = text.trim();
+    const trimmedDisplay = displayText?.trim();
     if ((!trimmed && images.length === 0) || isThinking) return false;
 
-    const userMsg: MascotMsg = images.length > 0
-        ? { role: "user", text: trimmed, images, createdAt: new Date().toISOString() }
-        : { role: "user", text: trimmed, createdAt: new Date().toISOString() };
+    const userMsg: MascotMsg = {
+        role: "user",
+        text: trimmed,
+        ...(trimmedDisplay ? { displayText: trimmedDisplay } : {}),
+        ...(images.length > 0 ? { images } : {}),
+        createdAt: new Date().toISOString(),
+    };
     const shouldAutoTitle = !messages.some((msg) => msg.role === "user");
     const workingMessages = normalizeMessages([...messages, userMsg]);
     if (shouldAutoTitle && activeSessionId) {
         sessions = sessions.map((session) => session.id === activeSessionId
-            ? { ...session, title: autoMascotSessionTitle(trimmed || "（图片）") }
+            ? { ...session, title: autoMascotSessionTitle(trimmedDisplay || trimmed || "（图片）") }
             : session);
     }
     publishMessages(workingMessages);
@@ -720,14 +727,16 @@ export async function generateMascotReply({
 
 export async function sendMascotMessage({
     text,
+    displayText,
     images = [],
     context = getMascotContext(),
 }: {
     text: string;
+    displayText?: string;
     images?: string[];
     context?: MascotPageContext;
 }): Promise<void> {
-    const accepted = await appendMascotMessage({ text, images });
+    const accepted = await appendMascotMessage({ text, displayText, images });
     if (accepted) await generateMascotReply({ context });
 }
 

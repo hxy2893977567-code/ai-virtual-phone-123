@@ -6,7 +6,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-    Archive, ChevronLeft, Copy, Download, GlassWater, ImageDown, Martini, MoreHorizontal, Pencil, Play, Plug, Plus, RefreshCw, Share2, SlidersHorizontal, Trash2, Upload, Users, Wine, X } from "lucide-react";
+    Archive, BookOpen, ChevronLeft, Copy, Download, GlassWater, ImageDown, Martini, MoreHorizontal, Pencil, Play, Plug, Plus, RefreshCw, Share2, SlidersHorizontal, Trash2, Upload, Users, Wine, X } from "lucide-react";
+import { MixFileVaultSheet } from "./mix-file-vault";
 import {
     clearMixMaterialPublished,
     clearMixRecipePublished,
@@ -131,6 +132,8 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
     const [barEditing, setBarEditing] = useState<MixRecipe | null>(null);
     const [slotPicker, setSlotPicker] = useState<MixMaterialKind | null>(null);
     const [slotEditor, setSlotEditor] = useState<MixMaterialKind | null>(null);
+    const [fileVaultOpen, setFileVaultOpen] = useState(false);
+    const [fileVaultTargetKind, setFileVaultTargetKind] = useState<MixMaterialKind>("character");
     const [nameSheetOpen, setNameSheetOpen] = useState(false);
     const [recipeName, setRecipeName] = useState("");
     const [openingPicker, setOpeningPicker] = useState<MixRecipe | null>(null);
@@ -618,6 +621,18 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
                             <Pencil size={12} />
                         </button>
                         <button type="button" className="mix-icon-btn" onClick={() => setConnectorsOpen(true)} aria-label="连接器" title="连接器：给机括用的外部接口"><Plug size={17} /></button>
+                        <button
+                            type="button"
+                            className="mix-icon-btn"
+                            onClick={() => {
+                                setFileVaultTargetKind(cabinetKind);
+                                setFileVaultOpen(true);
+                            }}
+                            aria-label="从文件库导入"
+                            title="从文件库导入材料"
+                        >
+                            <BookOpen size={17} />
+                        </button>
                         <button type="button" className="mix-icon-btn" onClick={() => importFileRef.current?.click()} aria-label="导入材料" title="从文件导入"><Upload size={17} /></button>
                     </>
                 ) : null}
@@ -1552,6 +1567,18 @@ export function MixologyApp({ onClose }: { onClose: () => void }) {
             ) : null}
 
             {toast ? <div className="mix-toast">{toast}</div> : null}
+
+            <MixFileVaultSheet
+                open={fileVaultOpen}
+                targetKind={fileVaultTargetKind}
+                onClose={() => setFileVaultOpen(false)}
+                onImportMaterial={(material, targetKind) => {
+                    saveMixMaterial(material);
+                    setCabinet(loadMixCabinet());
+                    setCabinetKind(targetKind);
+                    showToast(`已将「${material.name}」作为${MIX_KIND_LABELS[targetKind]}存入酒柜`);
+                }}
+            />
         </div>
     );
 }
